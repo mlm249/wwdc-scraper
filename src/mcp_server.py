@@ -22,7 +22,7 @@ from wwdc_year import resolve_year, current_wwdc_year
 # Config
 # ---------------------------------------------------------------------------
 
-DATA_ROOT = Path(os.environ.get("WWDC_DOCS_PATH", Path(__file__).parent / "output"))
+DATA_ROOT = Path(os.environ.get("WWDC_DOCS_PATH", Path(__file__).parent.parent / "output"))
 SESSIONS_ROOT = DATA_ROOT / "sessions" if (DATA_ROOT / "sessions").exists() else DATA_ROOT
 SYMBOLS_ROOT = DATA_ROOT / "symbols"
 DOCS_BASE = "https://developer.apple.com/tutorials/data"

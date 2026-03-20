@@ -2,6 +2,7 @@ PYTHON     := .venv/bin/python
 PIP        := .venv/bin/pip
 YEAR       ?= $(shell $(PYTHON) -c "from wwdc_year import current_wwdc_year; print(current_wwdc_year())" 2>/dev/null || date +%Y)
 FRAMEWORKS ?= swiftui uikit
+PYTHONPATH := $(shell pwd)/src
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -12,28 +13,28 @@ setup: .venv register
 
 .venv:
 	python3.13 -m venv .venv
-	$(PIP) install --quiet "mcp[cli]" requests beautifulsoup4
+	$(PIP) install --quiet -r requirements.txt
 
 .PHONY: register
 register: .venv
 	claude mcp add --scope user wwdc-docs \
 		$(shell pwd)/.venv/bin/python \
-		$(shell pwd)/mcp_server.py \
+		$(shell pwd)/src/mcp_server.py \
 		--env WWDC_DOCS_PATH=$(shell pwd)/output 2>/dev/null || \
 	claude mcp add --scope user wwdc-docs \
 		$(shell pwd)/.venv/bin/python \
-		$(shell pwd)/mcp_server.py \
+		$(shell pwd)/src/mcp_server.py \
 		--env WWDC_DOCS_PATH=$(shell pwd)/output
 
 # ── Scraping ──────────────────────────────────────────────────────────────────
 
 .PHONY: scrape
 scrape: .venv
-	$(PYTHON) scrape.py --all $(YEAR)
+	$(PYTHON) src/scrape.py --all $(YEAR)
 
 .PHONY: index
 index: .venv
-	$(PYTHON) fetch_docs.py $(FRAMEWORKS)
+	$(PYTHON) src/fetch_docs.py $(FRAMEWORKS)
 
 # ── Aliases ───────────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ update: scrape index
 .PHONY: check
 check: .venv
 	@echo "Health check: scraping one session to verify selectors still work..."
-	$(PYTHON) -c "\
+	@PYTHONPATH=$(PYTHONPATH) $(PYTHON) -c "\
 import sys; \
 from scrape import scrape_session, validate_session; \
 r = scrape_session('https://developer.apple.com/videos/play/wwdc$(YEAR)/230/'); \
@@ -64,11 +65,11 @@ status:
 .PHONY: help
 help:
 	@echo "Usage:"
-	@echo "  make setup               Install deps + register MCP server (first-time)"
-	@echo "  make scrape              Scrape WWDC sessions (default: YEAR=2025)"
-	@echo "  make scrape YEAR=2024    Scrape a specific year"
-	@echo "  make index               Index symbol docs (default: swiftui uikit)"
-	@echo "  make index FRAMEWORKS=swiftui,alarmkit,mapkit"
-	@echo "  make update              scrape + index in one shot"
-	@echo "  make check               Scrape one session to verify selectors still work"
-	@echo "  make status              Show MCP server connection status"
+	@echo "  make setup                       Install deps + register MCP server (first-time)"
+	@echo "  make scrape                      Scrape WWDC sessions (default: current year)"
+	@echo "  make scrape YEAR=2024            Scrape a specific year"
+	@echo "  make index                       Index symbol docs (default: swiftui uikit)"
+	@echo "  make index FRAMEWORKS=\"swiftui alarmkit mapkit\""
+	@echo "  make update                      scrape + index in one shot"
+	@echo "  make check                       Verify scraper selectors still work"
+	@echo "  make status                      Show MCP server connection status"

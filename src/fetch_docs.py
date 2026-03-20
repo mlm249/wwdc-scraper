@@ -21,7 +21,7 @@ from pathlib import Path
 
 DOCS_BASE = "https://developer.apple.com/tutorials/data"
 DEFAULT_DELAY = 0.5
-OUTPUT_ROOT = Path("output/symbols")
+OUTPUT_ROOT = Path(__file__).parent.parent / "output" / "symbols"
 
 
 # ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@ Both data sources are exposed to Claude Code via a local [MCP server](https://mo
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/wwdc-scraper.git
+git clone <repo-url>
 cd wwdc-scraper
 
 make setup       # creates venv, installs deps, registers MCP server
@@ -93,7 +93,7 @@ Individual symbols are fetched on-demand and cached automatically — you don't 
 ## Setting Up on Another Machine
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/wwdc-scraper.git
+git clone <repo-url>
 cd wwdc-scraper
 make setup
 make scrape
@@ -106,13 +106,15 @@ The scraped session data and symbol cache are machine-local (gitignored). Each m
 
 ```
 wwdc-scraper/
-├── mcp_server.py     # MCP server — exposes 4 tools to Claude Code
-├── scrape.py         # WWDC session scraper (transcripts, code, summaries)
-├── fetch_docs.py     # Apple symbol docs fetcher + framework indexer
-├── wwdc_year.py      # Smart year resolution based on WWDC calendar
-├── Makefile          # setup, scrape, index, check, update
+├── src/
+│   ├── mcp_server.py     # MCP server — exposes 4 tools to Claude Code
+│   ├── scrape.py         # WWDC session scraper (transcripts, code, summaries)
+│   ├── fetch_docs.py     # Apple symbol docs fetcher + framework indexer
+│   └── wwdc_year.py      # Smart year resolution based on WWDC calendar
+├── Makefile
 ├── requirements.txt
-└── output/           # gitignored — generated locally
+├── .gitignore
+└── output/               # gitignored — generated locally per machine
     ├── 2025/
     │   ├── 230/
     │   │   ├── metadata.json
@@ -155,7 +157,7 @@ The MCP server is registered at user scope, so it's available in all your Claude
 # Registered automatically by `make setup` — for reference:
 claude mcp add --scope user wwdc-docs \
   /path/to/.venv/bin/python \
-  /path/to/mcp_server.py \
+  /path/to/src/mcp_server.py \
   --env WWDC_DOCS_PATH=/path/to/output
 ```
 
@@ -176,11 +178,11 @@ The June 15 cutoff gives a two-week buffer past the earliest WWDC has ever been 
 
 ## Contributing
 
-Issues and pull requests welcome. If Apple changes the HTML structure of their session pages and the scraper breaks, the fix is usually a one-line selector update in `scrape.py` — the `make check` command will tell you immediately.
+Issues and pull requests welcome. If Apple changes the HTML structure of their session pages and the scraper breaks, the fix is usually a one-line selector update in `src/scrape.py` — the `make check` command will tell you immediately.
 
 When contributing:
 - Run `make check` before submitting a scraper change
-- The four MCP tool descriptions (docstrings in `mcp_server.py`) are what Claude reads to decide when to call each tool — keep them accurate and specific
+- The four MCP tool descriptions (docstrings in `src/mcp_server.py`) are what Claude reads to decide when to call each tool — keep them accurate and specific
 
 ## License
 

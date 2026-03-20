@@ -78,7 +78,7 @@ def resolve_year(data_root: Path) -> tuple[str, str | None]:
 if __name__ == "__main__":
     import os
     from pathlib import Path
-    data_root = Path(os.environ.get("WWDC_DOCS_PATH", Path(__file__).parent / "output"))
+    data_root = Path(os.environ.get("WWDC_DOCS_PATH", Path(__file__).parent.parent / "output"))
     year, warning = resolve_year(data_root)
     print(f"Resolved year: {year}")
     if warning:

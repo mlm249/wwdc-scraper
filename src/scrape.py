@@ -265,7 +265,7 @@ def main():
         print(__doc__)
         sys.exit(1)
 
-    output_root = Path("output")
+    output_root = Path(__file__).parent.parent / "output"
 
     if args[0] == "--discover":
         raw = args[1] if len(args) > 1 else "2025"
