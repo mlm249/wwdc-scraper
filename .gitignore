@@ -1,0 +1,9 @@
+# Generated data — run `make scrape` and `make index` on each machine
+output/
+
+# Python virtual environment — run `make setup` on each machine
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
