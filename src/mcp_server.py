@@ -29,8 +29,13 @@ DOCS_BASE = "https://developer.apple.com/tutorials/data"
 
 mcp = FastMCP("wwdc-docs")
 
-# Resolve the best default year at startup
-_DEFAULT_YEAR, _YEAR_WARNING = resolve_year(DATA_ROOT)
+MAX_SEARCH_RESULTS = 10
+STOPWORDS = {"a", "an", "the", "in", "of", "for", "and", "to", "with", "on"}
+
+
+def _default_year() -> tuple[str, str | None]:
+    """Resolve per call so a scrape made while the server runs is picked up."""
+    return resolve_year(DATA_ROOT)
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +65,46 @@ def _keyword_match(query: str, *fields: str) -> bool:
     terms = q.split()
     combined = " ".join(f.lower() for f in fields if f)
     return all(t in combined for t in terms)
+
+
+def _tokens(text: str) -> list[str]:
+    """Lowercase words with apostrophes dropped, so "What’s" and "what's" both become "whats"."""
+    text = re.sub(r"['’‘`]", "", (text or "").lower())
+    return re.findall(r"[a-z0-9]+", text)
+
+
+def _field_score(term: str, words: set[str], text: str, weight: int) -> int:
+    """Full weight for a whole-word match, a third for a partial match ("swift" in "swiftui")."""
+    if term in words:
+        return weight
+    if term in text:
+        return max(1, weight // 3)
+    return 0
+
+
+def _score_session(terms: list[str], phrase: str, meta: dict) -> tuple[int, int]:
+    """Returns (score, number of query terms matched anywhere)."""
+    fields = [
+        (meta.get("title", ""), 10),
+        (meta.get("description", ""), 3),
+        (" ".join(meta.get("chapters", []) + meta.get("chapter_summaries", [])), 1),
+    ]
+    prepared = []
+    for text, weight in fields:
+        words = _tokens(text)
+        prepared.append((set(words), " ".join(words), weight))
+
+    score, matched = 0, 0
+    for term in terms:
+        term_scores = [_field_score(term, w, t, wt) for w, t, wt in prepared]
+        if any(term_scores):
+            matched += 1
+        score += sum(term_scores)
+
+    title_text = prepared[0][1]
+    if phrase and phrase in title_text:
+        score += 25
+    return score, matched
 
 
 def _fetch_symbol_json(framework: str, symbol_url_path: str) -> dict:
@@ -157,14 +202,19 @@ def search_wwdc(query: str, year: str = "") -> str:
         query: Keywords to search for (e.g. "SwiftUI navigation", "AlarmKit", "concurrency")
         year:  WWDC year to search. Defaults to the most recent available year.
     """
-    year = year or _DEFAULT_YEAR
-    prefix = f"> Note: {_YEAR_WARNING}\n\n" if _YEAR_WARNING else ""
+    warning = None
+    if not year:
+        year, warning = _default_year()
+    prefix = f"> Note: {warning}\n\n" if warning else ""
 
     year_dir = SESSIONS_ROOT / year
     if not year_dir.exists():
         return f"{prefix}No session data found for WWDC {year}. Run: make scrape YEAR={year}"
 
-    results = []
+    terms = [t for t in _tokens(query) if t not in STOPWORDS] or _tokens(query)
+    phrase = " ".join(_tokens(query))
+
+    scored = []
     for session_dir in sorted(year_dir.iterdir(), key=lambda p: p.name):
         meta_path = session_dir / "metadata.json"
         if not meta_path.exists():
@@ -173,27 +223,30 @@ def search_wwdc(query: str, year: str = "") -> str:
         if not meta:
             continue
 
-        searchable = " ".join([
-            meta.get("title", ""),
-            meta.get("description", ""),
-            " ".join(meta.get("chapter_summaries", [])),
-            " ".join(meta.get("chapters", [])),
-        ])
+        score, matched = _score_session(terms, phrase, meta)
+        if score == 0:
+            continue
+        scored.append((matched, score, {
+            "session_id": meta.get("session_id"),
+            "title": meta.get("title"),
+            "description": meta.get("description", "")[:200],
+            "chapters": meta.get("chapters", []),
+            "snippet_count": meta.get("code_snippet_count", 0),
+            "has_transcript": bool((session_dir / "transcript.md").exists()),
+        }))
 
-        if _keyword_match(query, searchable):
-            results.append({
-                "session_id": meta.get("session_id"),
-                "title": meta.get("title"),
-                "description": meta.get("description", "")[:200],
-                "chapters": meta.get("chapters", []),
-                "snippet_count": meta.get("code_snippet_count", 0),
-                "has_transcript": bool((session_dir / "transcript.md").exists()),
-            })
-
-    if not results:
+    if not scored:
         return f"{prefix}No WWDC {year} sessions found matching '{query}'."
 
-    lines = [f"{prefix}Found {len(results)} WWDC {year} session(s) matching '{query}':\n"]
+    # Prefer sessions matching every term; fall back to partial matches only if there are none.
+    full = [s for s in scored if s[0] == len(terms)]
+    partial = not full
+    ranked = sorted(full or scored, key=lambda s: (-s[0], -s[1]))
+    results = [r for _, _, r in ranked[:MAX_SEARCH_RESULTS]]
+
+    kind = "partially matching" if partial else "matching"
+    shown = f", showing top {len(results)}" if len(ranked) > len(results) else ""
+    lines = [f"{prefix}Found {len(ranked)} WWDC {year} session(s) {kind} '{query}'{shown}:\n"]
     for r in results:
         lines.append(f"## {r['title']} (Session {r['session_id']})")
         lines.append(f"{r['description']}")
@@ -221,7 +274,7 @@ def get_session(session_id: str, year: str = "", include_transcript: bool = Fals
         year:                WWDC year. Defaults to the most recent available year.
         include_transcript:  Whether to include the full transcript text (can be long)
     """
-    year = year or _DEFAULT_YEAR
+    year = year or _default_year()[0]
     session_dir = SESSIONS_ROOT / year / session_id
     if not session_dir.exists():
         return f"Session {session_id} not found for WWDC {year}."
