@@ -30,6 +30,7 @@ DOCS_BASE = "https://developer.apple.com/tutorials/data"
 mcp = FastMCP("wwdc-docs")
 
 MAX_SEARCH_RESULTS = 10
+MAX_SEARCH_CHAPTERS = 8
 STOPWORDS = {"a", "an", "the", "in", "of", "for", "and", "to", "with", "on"}
 
 
@@ -251,7 +252,10 @@ def search_wwdc(query: str, year: str = "") -> str:
         lines.append(f"## {r['title']} (Session {r['session_id']})")
         lines.append(f"{r['description']}")
         if r["chapters"]:
-            lines.append(f"Chapters: {', '.join(r['chapters'])}")
+            chapters = r["chapters"][:MAX_SEARCH_CHAPTERS]
+            more = len(r["chapters"]) - len(chapters)
+            suffix = f", … (+{more} more; use get_session)" if more else ""
+            lines.append(f"Chapters: {', '.join(chapters)}{suffix}")
         lines.append(f"Code snippets: {r['snippet_count']}  |  Transcript: {'yes' if r['has_transcript'] else 'no'}")
         lines.append("")
 
